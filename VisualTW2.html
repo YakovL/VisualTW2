@@ -3178,18 +3178,18 @@ A bug in TW2.3.0 requires [[SyncPatch]].
 !Code
 ***/
 //{{{
-config.macros.sync.getSyncableTiddlersWithoutSource = config.macros.sync.getSyncableTiddlersWithoutSource ? config.macros.sync.getSyncableTiddlersWithoutSource : config.macros.sync.getSyncableTiddlers;
+config.macros.sync.getSyncableTiddlersWithoutSource = config.macros.sync.getSyncableTiddlersWithoutSource || config.macros.sync.getSyncableTiddlers;
 
-config.macros.sync.startSyncWithoutSource = config.macros.sync.startSyncWithoutSource ? config.macros.sync.startSyncWithoutSource : config.macros.sync.startSync;
+config.macros.sync.startSyncWithoutSource = config.macros.sync.startSyncWithoutSource || config.macros.sync.startSync;
 
-config.macros.sync.getSyncableTiddlers = function(){
+config.macros.sync.getSyncableTiddlers = function() {
 	var syncs = config.macros.sync.getSyncableTiddlersWithoutSource();
-	for(var cpt=0;cpt&lt;syncs.length;cpt++){
-		var s= getPluginInfo(syncs[cpt].tiddler).Source;
+	for(var cpt = 0; cpt &lt; syncs.length; cpt++){
+		var s = getPluginInfo(syncs[cpt].tiddler).Source;
 		if (s) {
 			var source = FileAdaptor.minHostName(s);
 			source = source.replace(/#[^#]*$/,&quot;&quot;).replace(/\/*$/,&quot;&quot;);
-			syncs[cpt].source = (source==syncs[cpt].tiddler.fields[&quot;server.host&quot;]) ? &quot;&quot;: source;
+			syncs[cpt].source = (source == syncs[cpt].tiddler.fields[&quot;server.host&quot;]) ? &quot;&quot; : source;
 		}
 		else syncs[cpt].source = &quot;&quot;;
 	}
@@ -3200,12 +3200,12 @@ config.macros.sync.startSync = function(place) {
 	config.macros.sync.startSyncWithoutSource(place);
 	var w = new Wizard(place.getElementsByTagName(&quot;form&quot;)[0]);
 	w.setButtons([
-			{caption: this.syncLabel, tooltip: this.syncPrompt, onClick: this.doSync},
-			{caption: this.syncSourceLabel, tooltip: this.syncSourcePrompt, onClick: this.doSyncSource}
-		]);
+		{ caption: this.syncLabel, tooltip: this.syncPrompt, onClick: this.doSync },
+		{ caption: this.syncSourceLabel, tooltip: this.syncSourcePrompt, onClick: this.doSyncSource }
+	]);
 }
 
-merge(config.macros.sync,{
+merge(config.macros.sync, {
 	syncSourceLabel : &quot;reset source&quot;,
 	syncSourcePrompt : &quot;reset synchronization to plugin source, if available&quot;
 })
@@ -3213,11 +3213,11 @@ merge(config.macros.sync,{
 config.macros.sync.doSyncSource = function(e)
 {
 	var rowNames = ListView.getSelectedRows(currSync.listView);
-	for(var t=0; t&lt;currSync.syncList.length; t++) {
+	for(var t = 0; t &lt; currSync.syncList.length; t++) {
 		var si = currSync.syncList[t];
-		if((rowNames.indexOf(si.title) != -1)&amp;&amp;si.source) {
-			si.tiddler.fields[&quot;server.host&quot;]=si.source;
-			si.tiddler.fields[&quot;server.type&quot;]=&quot;file&quot;;
+		if((rowNames.indexOf(si.title) != -1) &amp;&amp; si.source) {
+			si.tiddler.fields[&quot;server.host&quot;] = si.source;
+			si.tiddler.fields[&quot;server.type&quot;] = &quot;file&quot;;
 			store.setDirty(true);
 		}
 	}
@@ -3225,8 +3225,7 @@ config.macros.sync.doSyncSource = function(e)
 	return false;
 };
 
-config.macros.sync.listViewTemplate.columns.push({name: 'Source', field: 'source', title: &quot;Source&quot;, type: 'Link'});
-
+config.macros.sync.listViewTemplate.columns.push({ name: 'Source', field: 'source', title: &quot;Source&quot;, type: 'Link' });
 //}}}</pre>
 </div>
 <div title="TabTimeline" creator="YourName" modifier="YourName" created="201110142215" changecount="1">
