@@ -3230,6 +3230,350 @@ config.macros.sync.doSyncSource = function(e)
 config.macros.sync.listViewTemplate.columns.push({ name: 'Source', field: 'source', title: &quot;Source&quot;, type: 'Link' });
 //}}}</pre>
 </div>
+<div title="SyncPlugin" creator="Yakov Litvin" modifier="Yakov Litvin" created="202311280930" tags="systemConfig" changecount="1">
+<pre>/***
+|Name|SyncPlugin|
+|Source|https://github.com/TiddlyWiki/tiddlywiki/blob/master/plugins/Sync.js|
+|Version|1.0.0|
+|~CoreVersion|2.6.6|
+|Type|plugin|
+|Description|Synchronise changes with other TiddlyWiki files and servers|
+!!!!!Code
+***/
+//{{{
+version.extensions.SyncPlugin = { major: 1, minor: 0, revision: 0, date: new Date(2011, 11, 24) };
+
+// Synchronisation handlers
+config.syncers = {};
+config.macros.sync = {};
+config.commands.syncing = { type: &quot;popup&quot; };
+
+var currSync = null;
+config.backstageTasks.push(&quot;sync&quot;);
+
+merge(config.tasks, { sync: {
+	text: &quot;sync&quot;,
+	tooltip: &quot;Synchronise changes with other TiddlyWiki files and servers&quot;,
+	content: '&lt;&lt;sync&gt;&gt;'
+} });
+
+merge(config.macros.sync, {
+	listViewTemplate: {
+		columns: [
+			{ name: 'Selected', field: 'selected', rowName: 'title', type: 'Selector' },
+			{ name: 'Tiddler', field: 'tiddler', title: &quot;Tiddler&quot;, type: 'Tiddler' },
+			{ name: 'Server Type', field: 'serverType', title: &quot;Server type&quot;, type: 'String' },
+			{ name: 'Server Host', field: 'serverHost', title: &quot;Server host&quot;, type: 'String' },
+			{ name: 'Server Workspace', field: 'serverWorkspace', title: &quot;Server workspace&quot;, type: 'String' },
+			{ name: 'Status', field: 'status', title: &quot;Synchronisation status&quot;, type: 'String' },
+			{ name: 'Server URL', field: 'serverUrl', title: &quot;Server URL&quot;, text: &quot;View&quot;, type: 'Link' }
+		],
+		rowClasses: [
+		],
+		buttons: [
+			{ caption: &quot;Sync these tiddlers&quot;, name: 'sync' }
+		]
+	},
+	wizardTitle: &quot;Synchronize with external servers and files&quot;,
+	step1Title: &quot;Choose the tiddlers you want to synchronize&quot;,
+	step1Html: &quot;&lt;input type='hidden' name='markList'&gt;&lt;/input&gt;&quot;, // DO NOT TRANSLATE
+	syncLabel: &quot;sync&quot;,
+	syncPrompt: &quot;Sync these tiddlers&quot;,
+	hasChanged: &quot;Changed while unplugged&quot;,
+	hasNotChanged: &quot;Unchanged while unplugged&quot;,
+	syncStatusList: {
+		none: { text: &quot;...&quot;, display: 'none', className: 'notChanged' },
+		changedServer: { text: &quot;Changed on server&quot;, display: null, className: 'changedServer' },
+		changedLocally: { text: &quot;Changed while unplugged&quot;, display: null, className: 'changedLocally' },
+		changedBoth: { text: &quot;Changed while unplugged and on server&quot;, display: null, className: 'changedBoth' },
+		notFound: { text: &quot;Not found on server&quot;, display: null, className: 'notFound' },
+		putToServer: { text: &quot;Saved update on server&quot;, display: null, className: 'putToServer' },
+		gotFromServer: { text: &quot;Retrieved update from server&quot;, display: null, className: 'gotFromServer' }
+	}
+});
+
+merge(config.commands.syncing, {
+	text: &quot;syncing&quot;,
+	tooltip: &quot;Control synchronisation of this tiddler with a server or external file&quot;,
+	// escaping of closing &lt;div&gt; tag is deliberate
+	currentlySyncing: &quot;&lt;div&gt;Currently syncing via &lt;span class='popupHighlight'&gt;'%0'&lt;/span&gt; to:&lt;/&quot; +
+		&quot;div&gt;&lt;div&gt;host: &lt;span class='popupHighlight'&gt;%1&lt;/span&gt;&lt;/&quot; +
+		&quot;div&gt;&lt;div&gt;workspace: &lt;span class='popupHighlight'&gt;%2&lt;/span&gt;&lt;/&quot; + &quot;div&gt;&quot;,
+	notCurrentlySyncing: &quot;Not currently syncing&quot;,
+	captionUnSync: &quot;Stop synchronising this tiddler&quot;,
+	chooseServer: &quot;Synchronise this tiddler with another server:&quot;,
+	currServerMarker: &quot;\u25cf &quot;,
+	notCurrServerMarker: &quot;  &quot;
+});
+
+config.commands.syncing.handlePopup = function(popup, title)
+{
+	var tiddler = store.fetchTiddler(title);
+	if(!tiddler) return;
+
+	var me = config.commands.syncing;
+	var serverType = tiddler.getServerType();
+	var serverHost = tiddler.fields[&quot;server.host&quot;];
+	var serverWorkspace = tiddler.fields[&quot;server.workspace&quot;];
+	if(!serverWorkspace)
+		serverWorkspace = &quot;&quot;;
+	if(serverType) {
+		var e = createTiddlyElement(popup, &quot;li&quot;, null, &quot;popupMessage&quot;);
+		e.innerHTML = me.currentlySyncing.format([serverType, serverHost, serverWorkspace]);
+	} else {
+		createTiddlyElement(popup, &quot;li&quot;, null, &quot;popupMessage&quot;, me.notCurrentlySyncing);
+	}
+	if(serverType) {
+		createTiddlyElement(createTiddlyElement(popup, &quot;li&quot;, null, &quot;listBreak&quot;), &quot;div&quot;);
+		var btn = createTiddlyButton(createTiddlyElement(popup, &quot;li&quot;), this.captionUnSync, null, me.onChooseServer);
+		btn.setAttribute(&quot;tiddler&quot;, title);
+		btn.setAttribute(&quot;server.type&quot;, &quot;&quot;);
+	}
+	createTiddlyElement(createTiddlyElement(popup, &quot;li&quot;, null, &quot;listBreak&quot;), &quot;div&quot;);
+	createTiddlyElement(popup, &quot;li&quot;, null, &quot;popupMessage&quot;, me.chooseServer);
+	var feeds = store.getTaggedTiddlers(&quot;systemServer&quot;, &quot;title&quot;);
+	for(var i = 0; i &lt; feeds.length; i++) {
+		var f = feeds[i];
+		var feedServerType = store.getTiddlerSlice(f.title, &quot;Type&quot;) || &quot;file&quot;;
+		var feedServerHost = store.getTiddlerSlice(f.title, &quot;URL&quot;) || &quot;&quot;;
+		var feedServerWorkspace = store.getTiddlerSlice(f.title, &quot;Workspace&quot;) || &quot;&quot;;
+		var caption = f.title;
+		if(serverType == feedServerType &amp;&amp; serverHost == feedServerHost &amp;&amp; serverWorkspace == feedServerWorkspace) {
+			caption = me.currServerMarker + caption;
+		} else {
+			caption = me.notCurrServerMarker + caption;
+		}
+		btn = createTiddlyButton(createTiddlyElement(popup, &quot;li&quot;), caption, null, me.onChooseServer);
+		btn.setAttribute(&quot;tiddler&quot;, title);
+		btn.setAttribute(&quot;server.type&quot;, feedServerType);
+		btn.setAttribute(&quot;server.host&quot;, feedServerHost);
+		btn.setAttribute(&quot;server.workspace&quot;, feedServerWorkspace);
+	}
+};
+
+config.commands.syncing.onChooseServer = function(e)
+{
+	var tiddler = this.getAttribute(&quot;tiddler&quot;);
+	var serverType = this.getAttribute(&quot;server.type&quot;);
+	if(serverType) {
+		store.addTiddlerFields(tiddler, {
+			&quot;server.type&quot;: serverType,
+			&quot;server.host&quot;: this.getAttribute(&quot;server.host&quot;),
+			&quot;server.workspace&quot;: this.getAttribute(&quot;server.workspace&quot;)
+		});
+	} else {
+		store.setValue(tiddler, &quot;server&quot;, null);
+	}
+	return false;
+};
+
+// sync macro
+// Sync state.
+//# Members:
+//#	syncList - List of sync objects (title, tiddler, server, workspace, page, revision)
+//#	wizard - reference to wizard object
+//#	listView - DOM element of the listView table
+config.macros.sync.handler = function(place, macroName, params, wikifier, paramString, tiddler)
+{
+	if(!wikifier.isStatic) this.startSync(place);
+};
+
+config.macros.sync.cancelSync = function()
+{
+	currSync = null;
+};
+
+config.macros.sync.startSync = function(place)
+{
+	if(currSync) config.macros.sync.cancelSync();
+	currSync = {};
+	currSync.syncList = this.getSyncableTiddlers();
+	currSync.syncTasks = this.createSyncTasks(currSync.syncList);
+	this.preProcessSyncableTiddlers(currSync.syncList);
+	var wizard = new Wizard();
+	currSync.wizard = wizard;
+	wizard.createWizard(place, this.wizardTitle);
+	wizard.addStep(this.step1Title, this.step1Html);
+	var markList = wizard.getElement(&quot;markList&quot;);
+	var listWrapper = document.createElement(&quot;div&quot;);
+	markList.parentNode.insertBefore(listWrapper, markList);
+	currSync.listView = ListView.create(listWrapper, currSync.syncList, this.listViewTemplate);
+	this.processSyncableTiddlers(currSync.syncList);
+	wizard.setButtons([{ caption: this.syncLabel, tooltip: this.syncPrompt, onClick: this.doSync }]);
+};
+
+config.macros.sync.getSyncableTiddlers = function()
+{
+	var list = [];
+	store.forEachTiddler(function(title, tiddler) {
+		var syncItem = {};
+		syncItem.serverType = tiddler.getServerType();
+		syncItem.serverHost = tiddler.fields['server.host'];
+		if(!syncItem.serverType || !syncItem.serverHost) return;
+		syncItem.adaptor = new config.adaptors[syncItem.serverType]();
+		syncItem.serverHost = syncItem.adaptor.fullHostName(syncItem.serverHost);
+		syncItem.serverWorkspace = tiddler.fields['server.workspace'];
+		syncItem.tiddler = tiddler;
+		syncItem.title = tiddler.title;
+		syncItem.isTouched = tiddler.isTouched();
+		syncItem.selected = syncItem.isTouched;
+		syncItem.syncStatus = config.macros.sync.syncStatusList[syncItem.isTouched ? &quot;changedLocally&quot; : &quot;none&quot;];
+		syncItem.status = syncItem.syncStatus.text;
+		list.push(syncItem);
+	});
+	list.sort(function(a, b) { return a.title &lt; b.title ? -1 : (a.title == b.title ? 0 : +1) });
+	return list;
+};
+
+config.macros.sync.preProcessSyncableTiddlers = function(syncList)
+{
+	for(var i = 0; i &lt; syncList.length; i++) {
+		var si = syncList[i];
+		si.serverUrl = si.adaptor.generateTiddlerInfo(si.tiddler).uri;
+	}
+};
+
+config.macros.sync.processSyncableTiddlers = function(syncList)
+{
+	for(var i = 0; i &lt; syncList.length; i++) {
+		var si = syncList[i];
+		if(si.syncStatus.display)
+			si.rowElement.style.display = si.syncStatus.display;
+		if(si.syncStatus.className)
+			si.rowElement.className = si.syncStatus.className;
+	}
+};
+
+config.macros.sync.createSyncTasks = function(syncList)
+{
+	var i, syncTasks = [];
+	for(i = 0; i &lt; syncList.length; i++) {
+		var si = syncList[i];
+		var j, r = null;
+		for(j = 0; j &lt; syncTasks.length; j++) {
+			var cst = syncTasks[j];
+			if(si.serverType == cst.serverType &amp;&amp; si.serverHost == cst.serverHost &amp;&amp; si.serverWorkspace == cst.serverWorkspace)
+				r = cst;
+		}
+		if(r) {
+			si.syncTask = r;
+			r.syncItems.push(si);
+		} else {
+			si.syncTask = this.createSyncTask(si);
+			syncTasks.push(si.syncTask);
+		}
+	}
+	return syncTasks;
+};
+
+config.macros.sync.createSyncTask = function(syncItem)
+{
+	var st = {};
+	st.serverType = syncItem.serverType;
+	st.serverHost = syncItem.serverHost;
+	st.serverWorkspace = syncItem.serverWorkspace;
+	st.syncItems = [syncItem];
+
+	var getTiddlerListCallback = function(context, sycnItems) {
+		var me = config.macros.sync;
+		if(!context.status) {
+			displayMessage(context.statusText);
+			return false;
+		}
+		syncItems = context.userParams;
+		var i, tiddlers = context.tiddlers;
+		for(i = 0; i &lt; syncItems.length; i++) {
+			var si = syncItems[i];
+			var f = tiddlers.findByField(&quot;title&quot;, si.title);
+			if(f !== null) {
+				if(tiddlers[f].fields['server.page.revision'] &gt; si.tiddler.fields['server.page.revision']) {
+					si.syncStatus = me.syncStatusList[si.isTouched ? 'changedBoth' : 'changedServer'];
+				}
+			} else {
+				si.syncStatus = me.syncStatusList.notFound;
+			}
+			me.updateSyncStatus(si);
+		}
+		return true;
+	};
+
+	var openWorkspaceCallback = function(context, syncItems) {
+		if(context.status) {
+			context.adaptor.getTiddlerList(context, syncItems, getTiddlerListCallback);
+			return true;
+		}
+		displayMessage(context.statusText);
+		return false;
+	};
+
+	var context = { host: st.serverHost, workspace: st.serverWorkspace };
+	syncItem.adaptor.openHost(st.serverHost);
+	syncItem.adaptor.openWorkspace(st.serverWorkspace, context, st.syncItems, openWorkspaceCallback);
+	return st;
+};
+
+config.macros.sync.updateSyncStatus = function(syncItem)
+{
+	var e = syncItem.colElements[&quot;status&quot;];
+	jQuery(e).empty();
+	createTiddlyText(e, syncItem.syncStatus.text);
+	syncItem.rowElement.style.display = syncItem.syncStatus.display;
+	if(syncItem.syncStatus.className)
+		syncItem.rowElement.className = syncItem.syncStatus.className;
+};
+
+config.macros.sync.doSync = function(e)
+{
+	var me = config.macros.sync;
+	var getTiddlerCallback = function(context, syncItem) {
+		if(!syncItem) return
+		var tiddler = context.tiddler;
+		store.saveTiddler(tiddler.title, tiddler.title, tiddler.text, tiddler.modifier,
+			tiddler.modified, tiddler.tags, tiddler.fields, true, tiddler.created);
+		syncItem.syncStatus = me.syncStatusList.gotFromServer;
+		me.updateSyncStatus(syncItem);
+	};
+	var putTiddlerCallback = function(context, syncItem) {
+		if(!syncItem) return
+		store.resetTiddler(context.title);
+		syncItem.syncStatus = me.syncStatusList.putToServer;
+		me.updateSyncStatus(syncItem);
+	};
+
+	var rowNames = ListView.getSelectedRows(currSync.listView);
+	var i, sl = me.syncStatusList;
+	for(i = 0; i &lt; currSync.syncList.length; i++) {
+		var si = currSync.syncList[i];
+		if(rowNames.indexOf(si.title) != -1) {
+			var errorMsg = &quot;Error in doSync: &quot;;
+			try {
+				var r = true;
+				switch(si.syncStatus) {
+				case sl.changedServer:
+					var context = {&quot;workspace&quot;: si.serverWorkspace};
+					r = si.adaptor.getTiddler(si.title,context,si,getTiddlerCallback);
+					break;
+				case sl.notFound:
+				case sl.changedLocally:
+				case sl.changedBoth:
+					r = si.adaptor.putTiddler(si.tiddler,null,si,putTiddlerCallback);
+					break;
+				default:
+					break;
+				}
+				if(!r) displayMessage(errorMsg + r);
+			} catch(ex) {
+				if(ex.name == &quot;TypeError&quot;)
+					displayMessage(&quot;sync operation unsupported: &quot; + ex.message);
+				else
+					displayMessage(errorMsg + ex.message);
+			}
+		}
+	}
+	return false;
+};
+//}}}</pre>
+</div>
 <div title="TabTimeline" creator="YourName" modifier="YourName" created="201110142215" changecount="1">
 <pre>&lt;&lt;timeline &quot;&quot; 25&gt;&gt;</pre>
 </div>
