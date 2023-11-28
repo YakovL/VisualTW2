@@ -3157,24 +3157,26 @@ config.macros.sparkline.handler = function(place,macroName,params)
 
 &lt;&lt;sync&gt;&gt;</pre>
 </div>
-<div title="SyncFromSourcePlugin" creator="YourName" modifier="YourName" created="201110142213" tags="Tools systemConfig VisualTW" changecount="1">
+<div title="SyncFromSourcePlugin" creator="YourName" modifier="Yakov Litvin" created="201110142213" tags="Tools systemConfig VisualTW">
 <pre>/***
-|''Name:''|SyncFromSourcePlugin|
-|''Description:''|Synchronizes plugins from their original source (issued from plugin info) instead of imported url. So, plugins can be imported from any existing tiddlywiki and still be synchronized with their original source.|
-|''Version:''|1.0.0|
-|''Date:''|Dec 21,2007|
-|''Source:''|https://yakovl.github.io/VisualTW2/VisualTW2.html#SyncFromSourcePlugin|
-|''Author:''|Pascal Collin|
-|''License:''|[[BSD open source license|License]]|
-|''~CoreVersion:''|2.2.0|
-|''Browser:''|Firefox 1.5; InternetExplorer 6.0|
+|''Name''        |SyncFromSourcePlugin|
+|''Description'' |Synchronizes plugins from their original source (issued from plugin info) instead of imported url. So, plugins can be imported from any existing tiddlywiki and still be synchronized with their original source.|
+|''Requires''    |SyncPlugin|
+|''Source''      |https://yakovl.github.io/VisualTW2/VisualTW2.html#SyncFromSourcePlugin|
+|''Author''      |Pascal Collin|
+|''Version''     |1.0.1|
+|''Date''        |Nov 28, 2023|
+|''License''     |[[BSD open source license|License]]|
 !Usage
-#import the plugin, save and reload.
-#a new column (source) is available in ''sync task'' from the ''backstage button''. If the plugin's source mismatches the plugin server.host (the place from which is was last imported), the source value is displayed.
-#a new button is also available : ''reset source''. Click on this button applies plugin's ''source'' as server.host for the checked lines.
+# install the [[SyncPlugin|https://github.com/TiddlyWiki/tiddlywiki/blob/master/plugins/Sync.js]] (recent versions of TW don't have sync out of the box).
+# import this plugin (or copy it with the {{{systemConfig}}} tag), save and reload.
+# a new column (Source) is available in ''sync task'' from the ''backstage button''. If the plugin's source mismatches the plugin server.host (the place from which is was last imported), the source value is displayed.
+# a new button is also available : ''reset source''. Click on this button applies plugin's ''source'' as server.host for the checked lines.
 Look at this [[example|SyncFromSourceDemo]] on plugin [[homepage|https://yakovl.github.io/VisualTW2/VisualTW2.html]].
 !Patch required for TiddlyWiki 2.3.0
-A bug in TW2.3.0 requires [[SyncPatch]].
+A bug in TW 2.3.0 requires [[SyncPatch]].
+!See also
+[[ExtensionsExplorerPlugin|https://github.com/YakovL/TiddlyWiki_ExtensionsExplorerPlugin]] for automatic updates checking and more.
 !Code
 ***/
 //{{{
